@@ -44,9 +44,11 @@ return new class extends Migration
 
         });
 
-        DB::statement(
-            'ALTER TABLE egresos ADD CONSTRAINT chk_egresos_monto CHECK (monto >= 0)'
-        );
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement(
+                'ALTER TABLE egresos ADD CONSTRAINT chk_egresos_monto CHECK (monto >= 0)'
+            );
+        }
     }
 
     /**

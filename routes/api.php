@@ -21,6 +21,10 @@ Route::prefix('auth')->group(function (): void {
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('dashboard/resumen', [DashboardController::class, 'resumen'])
         ->name('dashboard.resumen');
+    Route::get(
+        'dashboard/egresos-por-categoria',
+        [DashboardController::class, 'egresosPorCategoria'],
+    )->name('dashboard.egresos-por-categoria');
 
     Route::get(
         'categorias/{categoria}/subcategorias',

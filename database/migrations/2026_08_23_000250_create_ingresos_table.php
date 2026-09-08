@@ -36,9 +36,11 @@ return new class extends Migration
                 ->restrictOnDelete();
         });
 
-        DB::statement(
-            'ALTER TABLE ingresos ADD CONSTRAINT chk_ingresos_monto CHECK (monto >= 0)'
-        );
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement(
+                'ALTER TABLE ingresos ADD CONSTRAINT chk_ingresos_monto CHECK (monto >= 0)'
+            );
+        }
     }
 
     /**

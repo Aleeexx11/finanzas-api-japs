@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Dashboard\EgresosPorCategoriaRequest;
 use App\Http\Requests\Dashboard\ResumenDashboardRequest;
+use App\Models\Categoria;
 use DateTimeImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
@@ -11,6 +13,40 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+    /**
+     * Return the authenticated user's expenses grouped by category for a month.
+     */
+    public function egresosPorCategoria(
+        EgresosPorCategoriaRequest $request,
+    ): JsonResponse {
+        $filters = $request->validated();
+        $anio = (int) $filters['anio'];
+        $mes = (int) $filters['mes'];
+
+        $inicioMes = new DateTimeImmutable(sprintf('%04d-%02d-01', $anio, $mes));
+        $inicioMesSiguiente = $inicioMes->modify('+1 month');
+
+        $categorias = Categoria::query()
+            ->join('egresos', 'egresos.categoria_id', '=', 'categorias.id')
+            ->where('egresos.user_id', $request->user()->getKey())
+            ->where('egresos.fecha', '>=', $inicioMes->format('Y-m-d'))
+            ->where('egresos.fecha', '<', $inicioMesSiguiente->format('Y-m-d'))
+            ->select(['categorias.id', 'categorias.nombre'])
+            ->selectRaw('SUM(egresos.monto) AS total')
+            ->groupBy('categorias.id', 'categorias.nombre')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn (Categoria $categoria): array => [
+                'id' => $categoria->getKey(),
+                'nombre' => $categoria->nombre,
+                'total' => $this->formatearCentavos(
+                    $this->aCentavos($categoria->getAttribute('total')),
+                ),
+            ]);
+
+        return response()->json($categorias);
+    }
+
     /**
      * Return the authenticated user's monthly and year-to-date summary.
      */
@@ -106,7 +142,7 @@ class DashboardController extends Controller
     /**
      * Convert a database DECIMAL value to integer cents without using floats.
      */
-    private function aCentavos(string|int|null $monto): int
+    private function aCentavos(mixed $monto): int
     {
         $monto = (string) ($monto ?? '0');
 
