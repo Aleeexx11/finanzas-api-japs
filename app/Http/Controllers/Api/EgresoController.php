@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Egreso\IndexEgresoRequest;
 use App\Http\Requests\Egreso\StoreEgresoRequest;
 use App\Http\Requests\Egreso\UpdateEgresoRequest;
+use App\Http\Resources\Egreso\EgresoCollection;
+use App\Http\Resources\Egreso\EgresoResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -15,7 +17,7 @@ class EgresoController extends Controller
     /**
      * Display the authenticated user's expenses.
      */
-    public function index(IndexEgresoRequest $request): JsonResponse
+    public function index(IndexEgresoRequest $request): EgresoCollection
     {
         $filters = $request->validated();
 
@@ -31,9 +33,9 @@ class EgresoController extends Controller
             $query->whereMonth('fecha', $filters['mes']);
         }
 
-        return response()->json([
-            'data' => $query->orderByDesc('fecha')->get(),
-        ]);
+        return new EgresoCollection(
+            $query->orderByDesc('fecha')->get(),
+        );
     }
 
     /**
@@ -47,16 +49,16 @@ class EgresoController extends Controller
 
         $egreso->load(['categoria', 'subcategoria']);
 
-        return response()->json([
-            'message' => 'Egreso creado correctamente.',
-            'data' => $egreso,
-        ], Response::HTTP_CREATED);
+        return (new EgresoResource($egreso))
+            ->additional(['message' => 'Egreso creado correctamente.'])
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
     }
 
     /**
      * Display an expense owned by the authenticated user.
      */
-    public function show(Request $request, int $egreso): JsonResponse
+    public function show(Request $request, int $egreso): EgresoResource
     {
         $egreso = $request->user()
             ->egresos()
@@ -64,9 +66,7 @@ class EgresoController extends Controller
             ->whereKey($egreso)
             ->firstOrFail();
 
-        return response()->json([
-            'data' => $egreso,
-        ]);
+        return new EgresoResource($egreso);
     }
 
     /**
@@ -84,10 +84,9 @@ class EgresoController extends Controller
         $egreso->update($request->validated());
         $egreso->load(['categoria', 'subcategoria']);
 
-        return response()->json([
-            'message' => 'Egreso actualizado correctamente.',
-            'data' => $egreso,
-        ]);
+        return (new EgresoResource($egreso))
+            ->additional(['message' => 'Egreso actualizado correctamente.'])
+            ->response();
     }
 
     /**
