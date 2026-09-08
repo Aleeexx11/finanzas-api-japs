@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Dashboard\EgresosPorCategoriaRequest;
+use App\Http\Requests\Dashboard\ResumenAnualDashboardRequest;
 use App\Http\Requests\Dashboard\ResumenDashboardRequest;
 use App\Models\Categoria;
 use DateTimeImmutable;
@@ -13,6 +14,58 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+    /**
+     * Return all twelve monthly totals for the requested year.
+     */
+    public function resumenAnual(
+        ResumenAnualDashboardRequest $request,
+    ): JsonResponse {
+        $anio = (int) $request->validated('anio');
+        $inicioAnio = new DateTimeImmutable(sprintf('%04d-01-01', $anio));
+        $inicioAnioSiguiente = $inicioAnio->modify('+1 year');
+
+        $movimientos = $this->movimientosDelPeriodo(
+            $request->user()->getKey(),
+            $inicioAnio,
+            $inicioAnioSiguiente,
+        );
+        $expresionMes = DB::getDriverName() === 'sqlite'
+            ? "CAST(strftime('%m', fecha) AS INTEGER)"
+            : 'MONTH(fecha)';
+
+        $totalesPorMes = DB::query()
+            ->fromSub($movimientos, 'movimientos')
+            ->selectRaw("{$expresionMes} AS mes")
+            ->selectRaw(
+                'SUM(CASE WHEN tipo = ? THEN monto ELSE 0 END) AS ingresos',
+                ['ingreso'],
+            )
+            ->selectRaw(
+                'SUM(CASE WHEN tipo = ? THEN monto ELSE 0 END) AS egresos',
+                ['egreso'],
+            )
+            ->groupByRaw($expresionMes)
+            ->get()
+            ->keyBy('mes');
+
+        $resumen = [];
+
+        for ($mes = 1; $mes <= 12; $mes++) {
+            $totales = $totalesPorMes->get($mes);
+            $ingresos = $this->aCentavos($totales?->ingresos);
+            $egresos = $this->aCentavos($totales?->egresos);
+
+            $resumen[] = [
+                'mes' => $mes,
+                'ingresos' => $this->formatearCentavos($ingresos),
+                'egresos' => $this->formatearCentavos($egresos),
+                'balance' => $this->formatearCentavos($ingresos - $egresos),
+            ];
+        }
+
+        return response()->json($resumen);
+    }
+
     /**
      * Return the authenticated user's expenses grouped by category for a month.
      */
