@@ -1,20 +1,18 @@
 <?php
 
 return [
-    /*
-    | Sanctum is used only for personal access tokens in this API.
-    | Session guards and stateful SPA domains are intentionally disabled.
-    */
-    'stateful' => [],
+    'stateful' => explode(',', env(
+        'SANCTUM_STATEFUL_DOMAINS',
+        'localhost:5173,127.0.0.1:5173',
+    )),
 
-    'guard' => [],
+    'guard' => ['web'],
 
-    'expiration' => env('SANCTUM_EXPIRATION'),
+    // Expire Bearer tokens after 12 hours unless an environment overrides it.
+    'expiration' => env('SANCTUM_EXPIRATION', 720),
 
     'token_prefix' => env('SANCTUM_TOKEN_PREFIX', ''),
 
     'last_used_at' => true,
 
-    /* Disable Sanctum's cookie/CSRF endpoint. */
-    'routes' => false,
 ];

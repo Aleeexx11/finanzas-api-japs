@@ -9,13 +9,15 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
     /**
-     * Register a user and issue a Bearer token.
+     * Register a user and authenticate the first-party SPA by session.
      */
     public function register(RegisterRequest $request): JsonResponse
     {
@@ -25,6 +27,17 @@ class AuthController extends Controller
             'password' => Hash::make($request->validated('password')),
         ]);
 
+        if ($request->hasSession()) {
+            Auth::guard('web')->login($user);
+            $request->session()->regenerate();
+
+            return response()->json([
+                'message' => 'Usuario registrado correctamente.',
+                'user' => $this->userData($user),
+            ], Response::HTTP_CREATED);
+        }
+
+        // Keep personal access tokens available to non-browser API clients.
         $token = $user->createToken(
             $request->validated('device_name', 'react-vite'),
             ['*'],
@@ -39,10 +52,27 @@ class AuthController extends Controller
     }
 
     /**
-     * Validate credentials and issue a Bearer token.
+     * Authenticate the first-party SPA with a session, or issue a token to API clients.
      */
     public function login(LoginRequest $request): JsonResponse
     {
+        if ($request->hasSession()) {
+            if (! Auth::guard('web')->attempt(
+                $request->safe()->only(['email', 'password']),
+            )) {
+                throw ValidationException::withMessages([
+                    'email' => ['Las credenciales proporcionadas son incorrectas.'],
+                ]);
+            }
+
+            $request->session()->regenerate();
+
+            return response()->json([
+                'message' => 'Sesión iniciada correctamente.',
+                'user' => $this->userData(Auth::guard('web')->user()),
+            ]);
+        }
+
         $user = User::query()
             ->where('email', $request->validated('email'))
             ->first();
@@ -70,14 +100,34 @@ class AuthController extends Controller
     }
 
     /**
-     * Revoke only the Bearer token used by the current request.
+     * Revoke the current API token or destroy the authenticated browser session.
      */
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()?->delete();
+        $token = $request->user()->currentAccessToken();
+
+        if ($token instanceof PersonalAccessToken) {
+            $token->delete();
+        }
+
+        if ($request->hasSession()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return response()->json([
             'message' => 'Sesión cerrada correctamente.',
+        ]);
+    }
+
+    /**
+     * Return the authenticated user for restoring a browser session or API token.
+     */
+    public function currentUser(Request $request): JsonResponse
+    {
+        return response()->json([
+            'user' => $this->userData($request->user()),
         ]);
     }
 
