@@ -11,6 +11,8 @@ use App\Http\Resources\Egreso\EgresoResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class EgresoController extends Controller
 {
@@ -43,9 +45,29 @@ class EgresoController extends Controller
      */
     public function store(StoreEgresoRequest $request): JsonResponse
     {
-        $egreso = $request->user()
-            ->egresos()
-            ->create($request->validated());
+        $datos = $request->validated();
+        $recurrente = (bool) ($datos['recurrente'] ?? false);
+        unset($datos['recurrente']);
+
+        $egreso = DB::transaction(function () use ($request, $datos, $recurrente) {
+            $egreso = $request->user()->egresos()->create($datos);
+
+            if ($recurrente) {
+                $request->user()->movimientosRecurrentes()->create([
+                    'tipo' => 'egreso',
+                    'categoria_id' => $egreso->categoria_id,
+                    'subcategoria_id' => $egreso->subcategoria_id,
+                    'concepto' => $egreso->descripcion,
+                    'monto' => $egreso->monto,
+                    'proxima_fecha' => Carbon::parse($egreso->fecha)->addMonthNoOverflow()->toDateString(),
+                    'dia_programado' => Carbon::parse($egreso->fecha)->day,
+                    'activo' => true,
+                    'notas' => $egreso->notas,
+                ]);
+            }
+
+            return $egreso;
+        });
 
         $egreso->load(['categoria', 'subcategoria']);
 

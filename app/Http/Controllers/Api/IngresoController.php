@@ -11,6 +11,8 @@ use App\Http\Resources\Ingreso\IngresoResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class IngresoController extends Controller
 {
@@ -43,9 +45,28 @@ class IngresoController extends Controller
      */
     public function store(StoreIngresoRequest $request): JsonResponse
     {
-        $ingreso = $request->user()
-            ->ingresos()
-            ->create($request->validated());
+        $datos = $request->validated();
+        $recurrente = (bool) ($datos['recurrente'] ?? false);
+        unset($datos['recurrente']);
+
+        $ingreso = DB::transaction(function () use ($request, $datos, $recurrente) {
+            $ingreso = $request->user()->ingresos()->create($datos);
+
+            if ($recurrente) {
+                $request->user()->movimientosRecurrentes()->create([
+                    'tipo' => 'ingreso',
+                    'categoria_id' => $ingreso->categoria_id,
+                    'concepto' => $ingreso->fuente,
+                    'monto' => $ingreso->monto,
+                    'proxima_fecha' => Carbon::parse($ingreso->fecha)->addMonthNoOverflow()->toDateString(),
+                    'dia_programado' => Carbon::parse($ingreso->fecha)->day,
+                    'activo' => true,
+                    'notas' => $ingreso->notas,
+                ]);
+            }
+
+            return $ingreso;
+        });
 
         $ingreso->load('categoria');
 

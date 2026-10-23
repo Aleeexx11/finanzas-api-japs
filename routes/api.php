@@ -5,6 +5,9 @@ use App\Http\Controllers\Api\CategoriaController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EgresoController;
 use App\Http\Controllers\Api\IngresoController;
+use App\Http\Controllers\Api\MetaAhorroController;
+use App\Http\Controllers\Api\MovimientoRecurrenteController;
+use App\Http\Controllers\Api\PresupuestoController;
 use App\Http\Controllers\Api\SubcategoriaController;
 use Illuminate\Support\Facades\Route;
 
@@ -32,6 +35,19 @@ Route::middleware('auth:sanctum')->group(function (): void {
         'dashboard/egresos-por-categoria',
         [DashboardController::class, 'egresosPorCategoria'],
     )->name('dashboard.egresos-por-categoria');
+
+    Route::apiResource('presupuestos', PresupuestoController::class)->except(['show']);
+    Route::apiResource('metas-ahorro', MetaAhorroController::class)->except(['show']);
+    Route::post(
+        'movimientos-recurrentes/{movimientoRecurrente}/confirmar',
+        [MovimientoRecurrenteController::class, 'confirmar'],
+    )->whereNumber('movimientoRecurrente');
+    Route::patch(
+        'movimientos-recurrentes/{movimientoRecurrente}/estado',
+        [MovimientoRecurrenteController::class, 'estado'],
+    )->whereNumber('movimientoRecurrente');
+    Route::apiResource('movimientos-recurrentes', MovimientoRecurrenteController::class)
+        ->except(['show']);
 
     Route::get(
         'categorias/{categoria}/subcategorias',

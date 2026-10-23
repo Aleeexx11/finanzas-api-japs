@@ -48,6 +48,7 @@ class StoreIngresoRequest extends FormRequest
                 'regex:/^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$/',
             ],
             'notas' => ['nullable', 'string'],
+            'recurrente' => ['sometimes', 'boolean'],
         ];
     }
 }

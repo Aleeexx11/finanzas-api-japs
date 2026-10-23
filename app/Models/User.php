@@ -55,4 +55,19 @@ class User extends Authenticatable
     {
         return $this->hasMany(Egreso::class);
     }
+
+    public function presupuestos(): HasMany
+    {
+        return $this->hasMany(Presupuesto::class);
+    }
+
+    public function movimientosRecurrentes(): HasMany
+    {
+        return $this->hasMany(MovimientoRecurrente::class);
+    }
+
+    public function metasAhorro(): HasMany
+    {
+        return $this->hasMany(MetaAhorro::class);
+    }
 }
